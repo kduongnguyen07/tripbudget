@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'Montserrat', sans-serif;
+    --color-gold: #d4af37;
+    --bg-dark: #0C0805;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #0C0805;
+    color: #f1f5f9;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: var(--font-serif);
+  }
+}
+
+/* MyBhutan Luxury Typography & Colors */
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.bg-mybhutan-dark {
+  background-color: #0C0805;
+}
+
+.bg-mybhutan-card {
+  background-color: #14100c;
+}
+
+.text-gold {
+  color: #d4af37;
+}
+
+.border-gold {
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.bg-gold {
+  background-color: #d4af37;
+}
+
+.bg-gold:hover {
+  background-color: #c29e2e;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0C0805;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2017;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
+}

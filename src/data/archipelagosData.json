@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Quần đảo Hoàng Sa (Việt Nam)",
+    "coordinates": [111.6, 16.5],
+    "type": "archipelago",
+    "description": "Lãnh thổ thiêng liêng thuộc chủ quyền Việt Nam"
+  },
+  {
+    "name": "Quần đảo Trường Sa (Việt Nam)",
+    "coordinates": [114.3, 9.5],
+    "type": "archipelago",
+    "description": "Lãnh thổ thiêng liêng thuộc chủ quyền Việt Nam"
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "heritage-pulp",
+    "category": "DU LỊCH VIỆT NAM • DI SẢN & TÂM LINH",
+    "title": "Hành Trình Khám Phá",
+    "titleHighlight": "Cá Nhân Hóa",
+    "description": "Khám phá cảnh quan thiên nhiên kỳ vĩ, chùa cổ ngàn năm và nền ẩm thực phong phú của Việt Nam. Công cụ lập kế hoạch giúp cân đối chi phí lưu trú, di chuyển và trải nghiệm một cách tinh tế.",
+    "image": "https://images.pexels.com/photos/28706873/pexels-photo-28706873.jpeg",
+    "imageCaptionTitle": "Chùa Trấn Quốc & Tràng An",
+    "imageCaptionSub": "DI SẢN THIÊN NHIÊN",
+    "features": [
+      "Lịch trình cá nhân hóa 100%",
+      "Dự toán chi phí tối ưu",
+      "Bản đồ tương tác di sản",
+      "Xuất file PDF lịch trình"
+    ]
+  },
+  {
+    "id": "culinary-tours",
+    "category": "TINH HOA ẨM THỰC VIỆT",
+    "title": "Hương Vị Nguyên Bản",
+    "titleHighlight": "Ẩm Thực Phố Cổ",
+    "description": "Từ Phở bò, Cà phê trứng Hà Nội đến Cao lầu Hội An và hải sản tươi ngon Phú Quốc & Hạ Long. Tùy chỉnh chi tiêu ẩm thực theo sở thích của bạn.",
+    "image": "https://images.unsplash.com/photo-1710532774170-9844f837ae54?auto=format&fit=crop&w=1200&q=85",
+    "imageCaptionTitle": "Ẩm Thực & Food Tour Đêm",
+    "imageCaptionSub": "ẨM THỰC ĐẶC SẮC",
+    "features": [
+      "Tour ẩm thực địa phương",
+      "Cân đối ngân sách ăn uống",
+      "Trải nghiệm đặc sản vùng miền",
+      "Khám phá chợ đêm truyền thống"
+    ]
+  },
+  {
+    "id": "unesco-wonders",
+    "category": "DI SẢN UNESCO & KỲ QUAN THIÊN NHIÊN",
+    "title": "Vịnh Hạ Long & Động Phong Nha",
+    "titleHighlight": "Kỳ Quan Đá Vôi",
+    "description": "Nghỉ đêm trên du thuyền giữa hàng ngàn đảo đá vôi, thám hiểm hang động Sửng Sốt và đón bình minh trên mặt nước xanh ngọc.",
+    "image": "https://images.unsplash.com/photo-1528127269322-539801943592?auto=format&fit=crop&w=1200&q=85",
+    "imageCaptionTitle": "Vịnh Hạ Long & Động Sửng Sốt",
+    "imageCaptionSub": "KỲ QUAN THẾ GIỚI",
+    "features": [
+      "Du thuyền nghỉ đêm cao cấp",
+      "Chèo Kayak Hang Luồn & Thám hiểm",
+      "Lặn biển Phú Quốc",
+      "Hoàng hôn Sunset Sanato"
+    ]
+  },
+  {
+    "id": "mountain-passes",
+    "category": "VĂN HÓA VÙNG CAO & ĐỈNH NÚI KỲ VĨ",
+    "title": "Ruộng Bậc Thang Sa Pa",
+    "titleHighlight": "Đỉnh Fansipan",
+    "description": "Trekking qua bản Cát Cát, chinh phục đỉnh Fansipan 3.143m và trải nghiệm những cung đường đèo hùng vĩ nhất miền Bắc.",
+    "image": "https://images.unsplash.com/photo-1733821793652-e650876d9a7a?auto=format&fit=crop&w=1200&q=85",
+    "imageCaptionTitle": "Thung Lũng Mường Hoa & Fansipan",
+    "imageCaptionSub": "TÂY BẮC HÙNG VĨ",
+    "features": [
+      "Cáp treo & Trekking Fansipan",
+      "Văn hóa bản làng dân tộc",
+      "Chinh phục Đèo Mã Pí Lèng",
+      "Săn ảnh ruộng bậc thang"
+    ]
+  }
+]

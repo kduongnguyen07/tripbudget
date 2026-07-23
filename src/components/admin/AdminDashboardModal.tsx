@@ -1,0 +1,1414 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  X, LayoutDashboard, MapPin, Sparkles, Sliders, Download, Upload, RotateCcw, 
+  Plus, Trash2, Edit3, Save, Check, Image as ImageIcon, BookOpen, DollarSign,
+  Cloud, CloudUpload, CloudDownload, RefreshCw, Search, Bell, Calendar,
+  TrendingUp, User, ChevronRight, CheckCircle2, ShieldCheck, Flame,
+  Globe, Monitor, Tablet, Smartphone, ExternalLink, Eye, Compass
+} from 'lucide-react';
+import { useData } from '../../context/DataContext';
+import { Destination, JourneySlide, HeroConfig, ActivityItem, TravelTipItem } from '../../types';
+import { SafeImage } from '../common/SafeImage';
+
+interface AdminDashboardModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
+  const { 
+    destinations, slides, heroConfig, 
+    isCloudSynced, isSyncingCloud, lastSyncedAt, syncWithCloud, fetchFromCloud,
+    addDestination, updateDestination, deleteDestination,
+    addSlide, updateSlide, deleteSlide,
+    updateHeroConfig, exportDataJSON, importDataJSON, resetToDefaults
+  } = useData();
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'destinations' | 'hero' | 'slides' | 'backup' | 'guide'>('dashboard');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Live Web Preview Device State
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [iframeKey, setIframeKey] = useState<number>(0);
+
+  // Hero Form State
+  const [heroForm, setHeroForm] = useState<HeroConfig>(heroConfig);
+
+  // Destination Edit/Add State
+  const [editingDest, setEditingDest] = useState<Partial<Destination> | null>(null);
+  const [isNewDest, setIsNewDest] = useState(false);
+
+  // Slide Edit/Add State
+  const [editingSlide, setEditingSlide] = useState<Partial<JourneySlide> | null>(null);
+  const [isNewSlide, setIsNewSlide] = useState(false);
+
+  // JSON Import Text State
+  const [jsonInput, setJsonInput] = useState('');
+
+  if (!isOpen) return null;
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Functional Instant Search Calculation
+  const searchResults = searchQuery.trim() ? [
+    ...destinations
+      .filter(d => d.name.toLowerCase().includes(searchQuery.toLowerCase()) || d.region.toLowerCase().includes(searchQuery.toLowerCase()))
+      .map(d => ({ type: 'destination' as const, id: d.id, title: d.name, subtitle: `${d.region} • ${d.activities?.length || 0} dịch vụ`, data: d })),
+    ...slides
+      .filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase()) || s.category.toLowerCase().includes(searchQuery.toLowerCase()))
+      .map(s => ({ type: 'slide' as const, id: s.id, title: `${s.title} ${s.titleHighlight}`, subtitle: `Slide: ${s.category}`, data: s })),
+    ...(heroConfig.titleLine1.toLowerCase().includes(searchQuery.toLowerCase()) || heroConfig.titleLine2.toLowerCase().includes(searchQuery.toLowerCase()) || 'hero'.includes(searchQuery.toLowerCase()) ? [
+      { type: 'hero' as const, id: 'hero_config', title: 'Cấu Hình Hero Banner Trang Chủ', subtitle: heroConfig.badge, data: heroConfig }
+    ] : [])
+  ] : [];
+
+  // Filtered destinations for search in Destinations tab
+  const filteredDestinations = destinations.filter(d => 
+    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    d.region.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Save Hero Config
+  const handleSaveHero = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateHeroConfig(heroForm);
+    showToast('Đã lưu thay đổi thông tin trang chủ!');
+  };
+
+  // Activity Items Handlers for Destination
+  const handleAddActivityItem = () => {
+    if (!editingDest) return;
+    const newAct: ActivityItem = {
+      id: `act_${Date.now()}`,
+      name: 'Dịch vụ / Hoạt động mới',
+      cost: 150000,
+      category: 'activities',
+      duration_hrs: 2,
+      score: 9.0
+    };
+    const currentActs = editingDest.activities || [];
+    setEditingDest({ ...editingDest, activities: [...currentActs, newAct] });
+  };
+
+  const handleUpdateActivityItem = (index: number, updatedItem: ActivityItem) => {
+    if (!editingDest || !editingDest.activities) return;
+    const updatedList = [...editingDest.activities];
+    updatedList[index] = updatedItem;
+    setEditingDest({ ...editingDest, activities: updatedList });
+  };
+
+  const handleDeleteActivityItem = (index: number) => {
+    if (!editingDest || !editingDest.activities) return;
+    const updatedList = editingDest.activities.filter((_, i) => i !== index);
+    setEditingDest({ ...editingDest, activities: updatedList });
+  };
+
+  // Travel Tips Handlers for Destination
+  const handleAddTravelTip = () => {
+    if (!editingDest) return;
+    const currentTips = editingDest.travel_tips || [
+      { title: 'Thời điểm lý tưởng', content: 'Nên lên kế hoạch du lịch trước từ 2 - 3 tuần để đảm bảo vé tham quan và khách sạn có mức giá tốt nhất.' },
+      { title: 'Đặc sản nên thử', content: 'Thưởng thức các món ăn địa phương truyền thống tại các tuyến phố ẩm thực nổi tiếng.' },
+      { title: 'Tối ưu chi phí', content: 'Sử dụng bộ công cụ kéo trượt bên dưới để tính toán chính xác tổng chi phí cho số ngày bạn dự định đi.' }
+    ];
+    setEditingDest({
+      ...editingDest,
+      travel_tips: [...currentTips, { title: 'Mẹo du lịch mới', content: 'Nội dung kinh nghiệm...' }]
+    });
+  };
+
+  const handleUpdateTravelTip = (index: number, updatedTip: TravelTipItem) => {
+    if (!editingDest) return;
+    const currentTips = editingDest.travel_tips || [
+      { title: 'Thời điểm lý tưởng', content: 'Nên lên kế hoạch du lịch trước từ 2 - 3 tuần để đảm bảo vé tham quan và khách sạn có mức giá tốt nhất.' },
+      { title: 'Đặc sản nên thử', content: 'Thưởng thức các món ăn địa phương truyền thống tại các tuyến phố ẩm thực nổi tiếng.' },
+      { title: 'Tối ưu chi phí', content: 'Sử dụng bộ công cụ kéo trượt bên dưới để tính toán chính xác tổng chi phí cho số ngày bạn dự định đi.' }
+    ];
+    const list = [...currentTips];
+    list[index] = updatedTip;
+    setEditingDest({ ...editingDest, travel_tips: list });
+  };
+
+  const handleDeleteTravelTip = (index: number) => {
+    if (!editingDest) return;
+    const currentTips = editingDest.travel_tips || [
+      { title: 'Thời điểm lý tưởng', content: 'Nên lên kế hoạch du lịch trước từ 2 - 3 tuần để đảm bảo vé tham quan và khách sạn có mức giá tốt nhất.' },
+      { title: 'Đặc sản nên thử', content: 'Thưởng thức các món ăn địa phương truyền thống tại các tuyến phố ẩm thực nổi tiếng.' },
+      { title: 'Tối ưu chi phí', content: 'Sử dụng bộ công cụ kéo trượt bên dưới để tính toán chính xác tổng chi phí cho số ngày bạn dự định đi.' }
+    ];
+    const list = currentTips.filter((_, i) => i !== index);
+    setEditingDest({ ...editingDest, travel_tips: list });
+  };
+
+  // Save Destination
+  const handleSaveDestination = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDest || !editingDest.name) return;
+
+    const formattedDest: Destination = {
+      id: editingDest.id || `dest_${Date.now()}`,
+      name: editingDest.name || 'Điểm đến mới',
+      region: editingDest.region || 'Miền Bắc',
+      coordinates: editingDest.coordinates || [105.85, 21.02],
+      hero_image: editingDest.hero_image || 'https://images.unsplash.com/photo-1543355890-20bc0a26fda1?auto=format&fit=crop&w=1200&q=85',
+      gallery_images: editingDest.gallery_images || [editingDest.hero_image || ''],
+      satisfaction_scores: editingDest.satisfaction_scores || { stay: 9.0, food: 9.0, transport: 9.0, activities: 9.0 },
+      activities: editingDest.activities && editingDest.activities.length > 0 ? editingDest.activities : [
+        { id: `act_${Date.now()}`, name: 'Tham quan danh thắng', cost: 100000, category: 'activities', duration_hrs: 2, score: 9.0 }
+      ],
+      travel_tips: editingDest.travel_tips || [
+        { title: 'Thời điểm lý tưởng', content: 'Nên lên kế hoạch du lịch trước từ 2 - 3 tuần để đảm bảo vé tham quan và khách sạn có mức giá tốt nhất.' },
+        { title: 'Đặc sản nên thử', content: 'Thưởng thức các món ăn địa phương truyền thống tại các tuyến phố ẩm thực nổi tiếng.' },
+        { title: 'Tối ưu chi phí', content: 'Sử dụng bộ công cụ kéo trượt bên dưới để tính toán chính xác tổng chi phí cho số ngày bạn dự định đi.' }
+      ]
+    };
+
+    if (isNewDest) {
+      addDestination(formattedDest);
+      showToast('Đã thêm điểm đến mới thành công!');
+    } else {
+      updateDestination(formattedDest);
+      showToast('Đã lưu thông tin điểm đến & bảng giá dịch vụ!');
+    }
+
+    setEditingDest(null);
+  };
+
+  // Slide Feature Items Handlers
+  const handleAddSlideFeature = () => {
+    if (!editingSlide) return;
+    const currentFeats = editingSlide.features || [];
+    setEditingSlide({ ...editingSlide, features: [...currentFeats, 'Điểm đặc sắc mới'] });
+  };
+
+  const handleUpdateSlideFeature = (index: number, val: string) => {
+    if (!editingSlide || !editingSlide.features) return;
+    const updated = [...editingSlide.features];
+    updated[index] = val;
+    setEditingSlide({ ...editingSlide, features: updated });
+  };
+
+  const handleDeleteSlideFeature = (index: number) => {
+    if (!editingSlide || !editingSlide.features) return;
+    const updated = editingSlide.features.filter((_, i) => i !== index);
+    setEditingSlide({ ...editingSlide, features: updated });
+  };
+
+  // Save Slide
+  const handleSaveSlide = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSlide || !editingSlide.title) return;
+
+    const formattedSlide: JourneySlide = {
+      id: editingSlide.id || `slide_${Date.now()}`,
+      category: editingSlide.category || 'DI SẢN & VĂN HÓA',
+      title: editingSlide.title || 'Hành Trình Khám Phá',
+      titleHighlight: editingSlide.titleHighlight || 'Đặc Sắc',
+      description: editingSlide.description || 'Mô tả chuyến đi...',
+      image: editingSlide.image || 'https://images.pexels.com/photos/28706873/pexels-photo-28706873.jpeg',
+      imageCaptionTitle: editingSlide.imageCaptionTitle || editingSlide.title || 'Thắng cảnh',
+      imageCaptionSub: editingSlide.imageCaptionSub || 'KỲ QUAN THẾ GIỚI',
+      features: editingSlide.features && editingSlide.features.length > 0 ? editingSlide.features : ['Điểm đến nổi tiếng', 'Dự toán minh bạch']
+    };
+
+    if (isNewSlide) {
+      addSlide(formattedSlide);
+      showToast('Đã thêm slide trải nghiệm mới!');
+    } else {
+      updateSlide(formattedSlide);
+      showToast('Đã cập nhật slide trải nghiệm!');
+    }
+
+    setEditingSlide(null);
+  };
+
+  // Export Backup File Download
+  const handleDownloadBackup = () => {
+    const jsonStr = exportDataJSON();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tripbudget_data_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('Đã xuất dữ liệu sao lưu hệ thống (.json) thành công!');
+  };
+
+  // Import JSON Submit
+  const handleImportSubmit = () => {
+    if (!jsonInput.trim()) return;
+    const ok = importDataJSON(jsonInput);
+    if (ok) {
+      showToast('Nạp dữ liệu từ mã JSON thành công!');
+      setJsonInput('');
+    } else {
+      showToast('Mã JSON không đúng cấu trúc!');
+    }
+  };
+
+  // Factory Reset
+  const handleResetFactory = () => {
+    if (window.confirm('Xác nhận khôi phục toàn bộ dữ liệu hệ thống về mặc định ban đầu?')) {
+      resetToDefaults();
+      setHeroForm(heroConfig);
+      showToast('Đã khôi phục dữ liệu gốc thành công!');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-md font-sans text-slate-800">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        className="w-full max-w-7xl h-[92vh] bg-[#f8fafc] border border-slate-200/80 rounded-[32px] overflow-hidden shadow-2xl flex flex-col md:flex-row relative"
+      >
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-[#d9f99d] text-slate-900 border border-lime-400 font-extrabold text-xs px-6 py-3 rounded-full shadow-xl flex items-center gap-2 font-sans tracking-wide"
+            >
+              <Check className="w-4 h-4 text-emerald-700" />
+              <span>{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* LEFT SIDEBAR (Matching Elevate Design System) */}
+        <aside className="w-full md:w-64 bg-slate-50/90 border-r border-slate-200/80 p-6 flex flex-col justify-between shrink-0 font-sans">
+          <div className="space-y-8">
+            
+            {/* Brand Logo Header (tripbudget.admin) */}
+            <div className="flex items-center gap-2.5 font-sans font-black text-xl text-slate-900 tracking-tight">
+              <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center font-extrabold text-base shadow-sm">
+                ✈
+              </div>
+              <span className="font-extrabold">tripbudget<span className="text-orange-500">.admin</span></span>
+            </div>
+
+            {/* Sidebar Navigation Menu */}
+            <nav className="space-y-1.5 text-xs font-medium">
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'dashboard'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Dashboard</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('destinations')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'destinations'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                <span>Điểm Đến & Bảng Giá</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('hero')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'hero'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>Banner Trang Chủ</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('slides')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'slides'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Vòng Xoay Di Sản</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('backup')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'backup'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <Cloud className="w-4 h-4" />
+                <span>Cloud & Sao Lưu</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('guide')}
+                className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all cursor-pointer ${
+                  activeTab === 'guide'
+                    ? 'bg-[#d9f99d] text-slate-900 font-extrabold shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                }`}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span>Hướng Dẫn</span>
+              </button>
+            </nav>
+
+          </div>
+
+          {/* Sidebar Footer Copyright */}
+          <div className="pt-6 border-t border-slate-200/60 text-[11px] text-slate-400 font-medium">
+            © 2026 TripBudget Systems
+          </div>
+        </aside>
+
+        {/* RIGHT MAIN WORKSPACE */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[#f8fafc] overflow-hidden font-sans relative">
+          
+          {/* TOP NAVBAR (Matching Elevate Topbar) */}
+          <header className="px-8 py-5 border-b border-slate-200/70 flex items-center justify-between gap-4 bg-white/60 backdrop-blur-sm shrink-0 relative z-30">
+            
+            {/* FUNCTIONAL SEARCH BAR WITH INSTANT RESULTS POPOVER */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input 
+                type="text" 
+                value={searchQuery}
+                onFocus={() => setIsSearchFocused(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchFocused(true);
+                }}
+                placeholder="Tìm kiếm điểm đến, dịch vụ, giá thành..." 
+                className="w-full bg-slate-100/90 border border-slate-200/80 rounded-full pl-10 pr-10 py-2 text-xs font-sans text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-orange-400/50"
+              />
+              {searchQuery ? (
+                <button 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSearchFocused(false);
+                  }}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : (
+                <span className="absolute right-3 top-2.5 text-[10px] font-bold text-slate-400 bg-white px-1.5 py-0.5 rounded-md border border-slate-200">⌘K</span>
+              )}
+
+              {/* INSTANT SEARCH RESULTS POPOVER */}
+              {isSearchFocused && searchQuery.trim() && (
+                <div className="absolute top-12 left-0 right-0 bg-white rounded-2xl border border-slate-200 shadow-2xl p-3 z-50 max-h-80 overflow-y-auto space-y-1 font-sans">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 py-1">
+                    Kết quả tìm kiếm ({searchResults.length})
+                  </div>
+
+                  {searchResults.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-500 font-sans">
+                      Không tìm thấy kết quả nào khớp với "{searchQuery}"
+                    </div>
+                  ) : (
+                    searchResults.map((res, i) => (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          if (res.type === 'destination') {
+                            setActiveTab('destinations');
+                            setEditingDest(res.data as Destination);
+                            setIsNewDest(false);
+                          } else if (res.type === 'slide') {
+                            setActiveTab('slides');
+                            setEditingSlide(res.data as JourneySlide);
+                            setIsNewSlide(false);
+                          } else {
+                            setActiveTab('hero');
+                          }
+                          setIsSearchFocused(false);
+                        }}
+                        className="p-2.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div>
+                          <div className="font-bold text-slate-900">{res.title}</div>
+                          <div className="text-[11px] text-slate-500">{res.subtitle}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          res.type === 'destination' ? 'bg-orange-100 text-orange-700' : res.type === 'slide' ? 'bg-purple-100 text-purple-700' : 'bg-lime-100 text-lime-800'
+                        }`}>
+                          {res.type}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Topbar Right Controls */}
+            <div className="flex items-center gap-3">
+              
+              {/* Cloud Sync Pill Badge */}
+              <button
+                onClick={async () => {
+                  const ok = await syncWithCloud();
+                  if (ok) showToast('Đã đồng bộ thành công dữ liệu lên Cloud DB!');
+                }}
+                disabled={isSyncingCloud}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
+                  isCloudSynced
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                }`}
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span>{isSyncingCloud ? 'Đang lưu...' : isCloudSynced ? 'Cloud Synced' : 'Sync Needed'}</span>
+              </button>
+
+              {/* Close Modal Button */}
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80 ml-1"
+                title="Đóng bảng quản trị"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+            </div>
+
+          </header>
+
+          {/* MAIN SCROLLABLE CONTENT BODY */}
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 font-sans">
+            
+            {/* TAB 0: DASHBOARD OVERVIEW WITH LIVE WEB PREVIEW */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6 max-w-6xl mx-auto h-full flex flex-col">
+                
+                {/* Header & Quick Status Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 pb-4 shrink-0">
+                  <div>
+                    <h1 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight flex items-center gap-2">
+                      <Eye className="w-6 h-6 text-orange-500" />
+                      <span>Live Web Preview & System Status</span>
+                    </h1>
+                    <p className="text-xs text-slate-500 font-sans">Xem trước toàn bộ giao diện trang chủ website thời gian thực (Responsive Live Viewport).</p>
+                  </div>
+
+                  {/* Stats Badges */}
+                  <div className="flex items-center gap-2 text-xs font-bold font-sans">
+                    <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Site Online
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-[#d9f99d] text-slate-900 border border-lime-300">
+                      {destinations.length} Điểm Đến Active
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+                      Cloud Restful Synced
+                    </span>
+                  </div>
+                </div>
+
+                {/* BROWSER MOCKUP INTERACTIVE PREVIEW CONTAINER */}
+                <div className="flex-1 bg-white border border-slate-200/80 rounded-[28px] shadow-lg overflow-hidden flex flex-col min-h-[560px]">
+                  
+                  {/* Mockup Top Address Bar */}
+                  <div className="bg-slate-100/90 border-b border-slate-200/80 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                    
+                    {/* Browser Window Controls */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded-full bg-red-400" />
+                        <span className="w-3 h-3 rounded-full bg-amber-400" />
+                        <span className="w-3 h-3 rounded-full bg-emerald-400" />
+                      </div>
+
+                      <div className="flex items-center gap-2 bg-white border border-slate-200/80 rounded-full px-4 py-1.5 text-xs text-slate-600 font-mono shadow-inner w-64 sm:w-80">
+                        <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span className="truncate">https://tripbudget-vietnam.vn</span>
+                      </div>
+                    </div>
+
+                    {/* Viewport Width Switcher */}
+                    <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-full text-xs font-bold">
+                      <button 
+                        onClick={() => setPreviewDevice('desktop')}
+                        className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
+                          previewDevice === 'desktop' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Monitor className="w-3.5 h-3.5" />
+                        <span>Desktop</span>
+                      </button>
+
+                      <button 
+                        onClick={() => setPreviewDevice('tablet')}
+                        className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
+                          previewDevice === 'tablet' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Tablet className="w-3.5 h-3.5" />
+                        <span>Tablet</span>
+                      </button>
+
+                      <button 
+                        onClick={() => setPreviewDevice('mobile')}
+                        className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer ${
+                          previewDevice === 'mobile' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Mobile</span>
+                      </button>
+                    </div>
+
+                    {/* Refresh & Open Site Actions */}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setIframeKey(prev => prev + 1)}
+                        className="p-2 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 shadow-sm transition-colors cursor-pointer"
+                        title="Làm mới xem trước"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+
+                      <a 
+                        href="/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <span>Mở Trang Web</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+
+                  </div>
+
+                  {/* Frame Container */}
+                  <div className="flex-1 bg-slate-200/50 p-4 flex items-center justify-center overflow-auto">
+                    <div 
+                      className={`h-full transition-all duration-300 bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-300 ${
+                        previewDevice === 'desktop' ? 'w-full' : previewDevice === 'tablet' ? 'w-[768px]' : 'w-[390px]'
+                      }`}
+                    >
+                      <iframe 
+                        key={iframeKey}
+                        src={window.location.origin}
+                        className="w-full h-full border-0"
+                        title="TripBudget Live Preview"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 1: DESTINATIONS & PRICING MANAGEMENT */}
+            {activeTab === 'destinations' && (
+              <div className="space-y-6 max-w-6xl mx-auto">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-slate-900">Quản Lý Điểm Đến & Bảng Giá Chi Tiết</h3>
+                    <p className="text-xs text-slate-500">Cập nhật toàn bộ danh lam thắng cảnh, hệ số dịch vụ và từng mục giá thành PuLP.</p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setEditingDest({
+                        name: '',
+                        region: 'Miền Bắc',
+                        hero_image: 'https://images.unsplash.com/photo-1543355890-20bc0a26fda1?auto=format&fit=crop&w=1200&q=85',
+                        satisfaction_scores: { stay: 9.0, food: 9.0, transport: 9.0, activities: 9.0 },
+                        coordinates: [105.85, 21.02],
+                        activities: [
+                          { id: `act_${Date.now()}_1`, name: 'Thắng cảnh / Khách sạn mẫu', cost: 150000, category: 'activities', duration_hrs: 2, score: 9.0 }
+                        ]
+                      });
+                      setIsNewDest(true);
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-[#d9f99d] hover:bg-lime-300 text-slate-900 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm transition-transform active:scale-95 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Điểm Đến Mới</span>
+                  </button>
+                </div>
+
+                {/* Edit Destination Form */}
+                {editingDest && (
+                  <div className="bg-white p-6 sm:p-8 rounded-[28px] border-2 border-lime-400 shadow-xl space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <h4 className="text-lg font-bold text-slate-900">
+                        {isNewDest ? 'Thêm Điểm Đến Mới' : `Chỉnh Sửa: ${editingDest.name}`}
+                      </h4>
+                      <button onClick={() => setEditingDest(null)} className="text-slate-400 hover:text-slate-700">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveDestination} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tên Điểm Đến & Danh Thắng</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingDest.name || ''}
+                            onChange={(e) => setEditingDest({ ...editingDest, name: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                            placeholder="Ví dụ: Hà Nội - Thủ Đô Ngàn Năm..."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vùng Miền</label>
+                          <select
+                            value={editingDest.region || 'Miền Bắc'}
+                            onChange={(e) => setEditingDest({ ...editingDest, region: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          >
+                            <option value="Miền Bắc">Miền Bắc</option>
+                            <option value="Miền Trung">Miền Trung</option>
+                            <option value="Miền Nam">Miền Nam</option>
+                            <option value="Tây Nguyên">Tây Nguyên</option>
+                            <option value="Tây Nam Bộ">Tây Nam Bộ</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Đường Dẫn Ảnh Đại Diện (Hero Image URL)</label>
+                        <input
+                          type="text"
+                          required
+                          value={editingDest.hero_image || ''}
+                          onChange={(e) => setEditingDest({ ...editingDest, hero_image: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                        />
+                      </div>
+
+                      {/* Scores Section */}
+                      <div className="space-y-2">
+                        <h5 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Hệ Số Chất Lượng & Chi Phí Dự Toán Ban Đầu</h5>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Điểm Lưu Trú (1-10)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              max="10"
+                              min="1"
+                              value={editingDest.satisfaction_scores?.stay || 9.0}
+                              onChange={(e) => setEditingDest({
+                                ...editingDest,
+                                satisfaction_scores: { ...editingDest.satisfaction_scores!, stay: parseFloat(e.target.value) || 9.0 }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Điểm Ẩm Thực (1-10)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              max="10"
+                              min="1"
+                              value={editingDest.satisfaction_scores?.food || 9.0}
+                              onChange={(e) => setEditingDest({
+                                ...editingDest,
+                                satisfaction_scores: { ...editingDest.satisfaction_scores!, food: parseFloat(e.target.value) || 9.0 }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Điểm Di Chuyển (1-10)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              max="10"
+                              min="1"
+                              value={editingDest.satisfaction_scores?.transport || 9.0}
+                              onChange={(e) => setEditingDest({
+                                ...editingDest,
+                                satisfaction_scores: { ...editingDest.satisfaction_scores!, transport: parseFloat(e.target.value) || 9.0 }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Điểm Vui Chơi (1-10)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              max="10"
+                              min="1"
+                              value={editingDest.satisfaction_scores?.activities || 9.0}
+                              onChange={(e) => setEditingDest({
+                                ...editingDest,
+                                satisfaction_scores: { ...editingDest.satisfaction_scores!, activities: parseFloat(e.target.value) || 9.0 }
+                              })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* DETAILED ITEM & PRICES EDITOR SECTION */}
+                      <div className="space-y-4 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <DollarSign className="w-4 h-4 text-lime-600" />
+                              <span>Danh Sách Dịch Vụ, Hoạt Động & Giá Thành Chi Tiết</span>
+                            </h5>
+                            <p className="text-xs text-slate-500">Chỉnh sửa trực tiếp từng tên mục hoạt động và giá tiền (VND) hiển thị trên kế hoạch lịch trình.</p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleAddActivityItem}
+                            className="px-4 py-1.5 rounded-full bg-lime-100 border border-lime-300 text-slate-900 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-lime-200"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm Mục Giá Dịch Vụ</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                          {(editingDest.activities || []).map((item, idx) => (
+                            <div key={item.id || idx} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                              
+                              {/* Name */}
+                              <div className="sm:col-span-4">
+                                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Tên Hoạt Động / Dịch Vụ</label>
+                                <input
+                                  type="text"
+                                  value={item.name}
+                                  onChange={(e) => handleUpdateActivityItem(idx, { ...item, name: e.target.value })}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-medium"
+                                />
+                              </div>
+
+                              {/* Image URL */}
+                              <div className="sm:col-span-4">
+                                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Link Ảnh Minh Họa (Image URL)</label>
+                                <input
+                                  type="text"
+                                  value={item.image || ''}
+                                  placeholder="Dán link ảnh minh họa..."
+                                  onChange={(e) => handleUpdateActivityItem(idx, { ...item, image: e.target.value })}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700"
+                                />
+                              </div>
+
+                              {/* Cost */}
+                              <div className="sm:col-span-3">
+                                <label className="block text-[10px] text-slate-700 font-bold uppercase mb-1">Giá Thành (VND)</label>
+                                <input
+                                  type="number"
+                                  step="10000"
+                                  value={item.cost}
+                                  onChange={(e) => handleUpdateActivityItem(idx, { ...item, cost: parseInt(e.target.value) || 0 })}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-extrabold"
+                                />
+                              </div>
+
+                              {/* Delete Item */}
+                              <div className="sm:col-span-1 flex justify-end pt-4 sm:pt-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteActivityItem(idx)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* TRAVEL TIPS EDITOR SECTION */}
+                      <div className="space-y-4 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h5 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <BookOpen className="w-4 h-4 text-lime-600" />
+                              <span>Cẩm Nang & Kinh Nghiệm Khám Phá (Travel Tips)</span>
+                            </h5>
+                            <p className="text-xs text-slate-500">Chỉnh sửa trực tiếp từng kinh nghiệm, thời điểm lý tưởng và mẹo tối ưu chi phí.</p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleAddTravelTip}
+                            className="px-4 py-1.5 rounded-full bg-lime-100 border border-lime-300 text-slate-900 text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-lime-200"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm Kinh Nghiệm Mới</span>
+                          </button>
+                        </div>
+
+                        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                          {(editingDest.travel_tips || [
+                            { title: 'Thời điểm lý tưởng', content: 'Nên lên kế hoạch du lịch trước từ 2 - 3 tuần để đảm bảo vé tham quan và khách sạn có mức giá tốt nhất.' },
+                            { title: 'Đặc sản nên thử', content: 'Thưởng thức các món ăn địa phương truyền thống tại các tuyến phố ẩm thực nổi tiếng.' },
+                            { title: 'Tối ưu chi phí', content: 'Sử dụng bộ công cụ kéo trượt bên dưới để tính toán chính xác tổng chi phí cho số ngày bạn dự định đi.' }
+                          ]).map((tip, idx) => (
+                            <div key={idx} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <input
+                                  type="text"
+                                  value={tip.title}
+                                  onChange={(e) => handleUpdateTravelTip(idx, { ...tip, title: e.target.value })}
+                                  className="w-full max-w-xs bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-bold"
+                                  placeholder="Tiêu đề (VD: Thời điểm lý tưởng...)"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTravelTip(idx)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <textarea
+                                rows={2}
+                                value={tip.content}
+                                onChange={(e) => handleUpdateTravelTip(idx, { ...tip, content: e.target.value })}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-800"
+                                placeholder="Nội dung mẹo kinh nghiệm..."
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setEditingDest(null)}
+                          className="px-5 py-2.5 rounded-full border border-slate-300 text-slate-700 text-xs font-bold uppercase"
+                        >
+                          Hủy Bỏ
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-7 py-2.5 rounded-full bg-[#d9f99d] text-slate-900 text-xs font-extrabold uppercase shadow-md hover:bg-lime-300"
+                        >
+                          Lưu Điểm Đến & Giá Thành
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Destinations Cards Grid matching Elevate style */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredDestinations.map((dest) => (
+                    <div key={dest.id} className="bg-white border border-slate-200/80 rounded-2xl p-5 space-y-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
+                          <SafeImage src={dest.hero_image} alt={dest.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <span className="text-[10px] font-extrabold text-lime-700 uppercase tracking-wider">{dest.region}</span>
+                          <h4 className="font-extrabold text-base text-slate-900 truncate">{dest.name}</h4>
+                          <span className="text-xs text-slate-500 block">{dest.activities?.length || 0} mục dịch vụ / giá thành</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                        <button
+                          onClick={() => {
+                            setEditingDest(dest);
+                            setIsNewDest(false);
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Sửa</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Xóa điểm đến "${dest.name}" khỏi danh sách?`)) {
+                              deleteDestination(dest.id);
+                              showToast(`Đã xóa: ${dest.name}`);
+                            }
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: HERO BANNER CONFIG */}
+            {activeTab === 'hero' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white p-6 sm:p-8 rounded-[28px] border border-slate-200/80 shadow-sm space-y-6">
+                  <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-extrabold text-slate-900">Cấu Hình Banner Trang Chủ (Hero)</h3>
+                      <p className="text-xs text-slate-500">Thay đổi câu khẩu hiệu, hình ảnh phong cảnh nền và các nút bấm chính.</p>
+                    </div>
+                    <button 
+                      onClick={handleSaveHero}
+                      className="px-6 py-2.5 rounded-full bg-[#d9f99d] hover:bg-lime-300 text-slate-900 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Lưu Cấu Hình</span>
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveHero} className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Thẻ Phụ (Sub-Badge)</label>
+                        <input
+                          type="text"
+                          value={heroForm.badge}
+                          onChange={(e) => setHeroForm({ ...heroForm, badge: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tên Nút Bấm Action CTA</label>
+                        <input
+                          type="text"
+                          value={heroForm.ctaButtonText}
+                          onChange={(e) => setHeroForm({ ...heroForm, ctaButtonText: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tiêu Đề Dòng 1</label>
+                        <input
+                          type="text"
+                          value={heroForm.titleLine1}
+                          onChange={(e) => setHeroForm({ ...heroForm, titleLine1: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tiêu Đề Dòng 2</label>
+                        <input
+                          type="text"
+                          value={heroForm.titleLine2}
+                          onChange={(e) => setHeroForm({ ...heroForm, titleLine2: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Từ Nổi Bật (Màu Vàng)</label>
+                        <input
+                          type="text"
+                          value={heroForm.titleHighlight}
+                          onChange={(e) => setHeroForm({ ...heroForm, titleHighlight: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Đường Dẫn Ảnh Phong Cảnh Nền (Hero Image URL)</label>
+                      <input
+                        type="text"
+                        value={heroForm.backgroundImage}
+                        onChange={(e) => setHeroForm({ ...heroForm, backgroundImage: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-lime-500 font-medium"
+                      />
+                    </div>
+
+                    {/* Image Live Preview */}
+                    <div className="space-y-2 pt-2">
+                      <span className="text-xs font-bold text-slate-500 block uppercase">Xem Trước Giao Diện Banner:</span>
+                      <div className="h-52 w-full rounded-2xl overflow-hidden border border-slate-200 relative bg-slate-900 shadow-inner">
+                        <SafeImage src={heroForm.backgroundImage} alt="Hero preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-4 text-center">
+                          <div className="font-serif font-bold text-2xl text-white drop-shadow-md">
+                            {heroForm.titleLine1} <br />
+                            <span>{heroForm.titleLine2}</span> <span className="text-amber-300">{heroForm.titleHighlight}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: SLIDES MANAGEMENT */}
+            {activeTab === 'slides' && (
+              <div className="space-y-6 max-w-6xl mx-auto">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                  <div>
+                    <h3 className="text-2xl font-extrabold text-slate-900">Quản Lý Slide Trải Nghiệm (Vòng Xoay Di Sản)</h3>
+                    <p className="text-xs text-slate-500">Quản lý các slide trải nghiệm, tựa đề, hình ảnh và danh sách điểm đặc sắc.</p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setEditingSlide({
+                        title: '',
+                        titleHighlight: '',
+                        category: 'DI SẢN & VĂN HÓA',
+                        description: '',
+                        image: 'https://images.pexels.com/photos/28706873/pexels-photo-28706873.jpeg',
+                        imageCaptionTitle: 'Thắng cảnh',
+                        imageCaptionSub: 'KỲ QUAN',
+                        features: ['Điểm đến nổi tiếng', 'Dự toán minh bạch']
+                      });
+                      setIsNewSlide(true);
+                    }}
+                    className="px-5 py-2.5 rounded-full bg-[#d9f99d] hover:bg-lime-300 text-slate-900 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm Slide Mới</span>
+                  </button>
+                </div>
+
+                {/* Slide Edit Form */}
+                {editingSlide && (
+                  <div className="bg-white p-6 rounded-[28px] border-2 border-lime-400 shadow-xl space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <h4 className="text-lg font-bold text-slate-900">
+                        {isNewSlide ? 'Thêm Slide Trải Nghiệm Mới' : `Chỉnh Sửa Slide: ${editingSlide.title}`}
+                      </h4>
+                      <button onClick={() => setEditingSlide(null)} className="text-slate-400 hover:text-slate-700">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveSlide} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tên Slide / Tiêu Đề</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingSlide.title || ''}
+                            onChange={(e) => setEditingSlide({ ...editingSlide, title: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Từ Nổi Bật (Màu Vàng)</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingSlide.titleHighlight || ''}
+                            onChange={(e) => setEditingSlide({ ...editingSlide, titleHighlight: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Danh Mục Thẻ (Category)</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingSlide.category || ''}
+                            onChange={(e) => setEditingSlide({ ...editingSlide, category: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mô Tả Chuyến Đi</label>
+                        <textarea
+                          rows={3}
+                          required
+                          value={editingSlide.description || ''}
+                          onChange={(e) => setEditingSlide({ ...editingSlide, description: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Thẻ Phụ Góc Trên Ảnh (imageCaptionSub)</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingSlide.imageCaptionSub || ''}
+                            onChange={(e) => setEditingSlide({ ...editingSlide, imageCaptionSub: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tiêu Đề Hộp Chú Thích Hover Ảnh (imageCaptionTitle)</label>
+                          <input
+                            type="text"
+                            required
+                            value={editingSlide.imageCaptionTitle || ''}
+                            onChange={(e) => setEditingSlide({ ...editingSlide, imageCaptionTitle: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Đường Dẫn Ảnh Minh Họa (Image URL)</label>
+                        <input
+                          type="text"
+                          required
+                          value={editingSlide.image || ''}
+                          onChange={(e) => setEditingSlide({ ...editingSlide, image: e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-lime-500"
+                        />
+                      </div>
+
+                      {/* FEATURE CARDS LIST EDITOR */}
+                      <div className="space-y-3 pt-2 border-t border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase">Danh Sách 4 Thẻ Điểm Nổi Bật (Features)</label>
+                            <span className="text-[11px] text-slate-500">Chỉnh sửa nội dung các thẻ nhỏ hiển thị phía dưới tiêu đề slide.</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAddSlideFeature}
+                            className="px-3.5 py-1.5 rounded-full bg-lime-100 border border-lime-300 text-slate-900 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Thêm Thẻ Nổi Bật</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {(editingSlide.features || []).map((feat, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                              <input
+                                type="text"
+                                value={feat}
+                                onChange={(e) => handleUpdateSlideFeature(idx, e.target.value)}
+                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-medium"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSlideFeature(idx)}
+                                className="p-1.5 rounded-lg bg-red-50 text-red-600 cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setEditingSlide(null)}
+                          className="px-5 py-2 rounded-full border border-slate-300 text-slate-700 text-xs font-bold uppercase"
+                        >
+                          Hủy Bỏ
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-6 py-2 rounded-full bg-[#d9f99d] text-slate-900 text-xs font-extrabold uppercase shadow-sm hover:bg-lime-300"
+                        >
+                          Lưu Slide Trải Nghiệm
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Slides Grid List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {slides.map((s) => (
+                    <div key={s.id} className="bg-white border border-slate-200/80 rounded-2xl p-4 flex gap-4 items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-slate-100 border border-slate-200">
+                          <SafeImage src={s.image} alt={s.title} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <span className="text-[10px] font-bold text-lime-700 uppercase">{s.category}</span>
+                          <h4 className="font-extrabold text-base text-slate-900 truncate">{s.title} {s.titleHighlight}</h4>
+                          <p className="text-xs text-slate-500 line-clamp-1">{s.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <button
+                          onClick={() => {
+                            setEditingSlide(s);
+                            setIsNewSlide(false);
+                          }}
+                          className="p-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold cursor-pointer"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Xóa slide "${s.title}"?`)) {
+                              deleteSlide(s.id);
+                              showToast(`Đã xóa: ${s.title}`);
+                            }
+                          }}
+                          className="p-2 rounded-lg bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 text-xs font-bold cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: BACKUP & DATA PORTABILITY */}
+            {activeTab === 'backup' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white p-6 sm:p-8 rounded-[28px] border border-slate-200/80 shadow-sm space-y-6">
+                  <div className="border-b border-slate-100 pb-4">
+                    <h3 className="text-2xl font-extrabold text-slate-900">Sao Lưu & Khôi Phục Dữ Liệu</h3>
+                    <p className="text-xs text-slate-500">Xuất file dữ liệu dự phòng (.json), khôi phục dữ liệu hoặc đưa về cài đặt gốc.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Export */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm">
+                          <Download className="w-5 h-5 text-lime-600" />
+                          <span>Xuất File Dự Phòng (.JSON)</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Tải toàn bộ nội dung website về máy tính dưới dạng file JSON an toàn.</p>
+                      </div>
+                      <button
+                        onClick={handleDownloadBackup}
+                        className="w-full py-3 rounded-full bg-[#d9f99d] hover:bg-lime-300 text-slate-900 font-extrabold text-xs uppercase tracking-wider cursor-pointer shadow-sm"
+                      >
+                        Tải File Backup Về Máy
+                      </button>
+                    </div>
+
+                    {/* Reset */}
+                    <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-red-600 font-extrabold text-sm">
+                          <RotateCcw className="w-5 h-5" />
+                          <span>Khôi Phục Mặc Định (Factory Reset)</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Xóa toàn bộ các chỉnh sửa tạm và đưa website về dữ liệu mẫu ban đầu.</p>
+                      </div>
+                      <button
+                        onClick={handleResetFactory}
+                        className="w-full py-3 rounded-full bg-red-100 hover:bg-red-200 border border-red-300 text-red-700 font-extrabold text-xs uppercase tracking-wider cursor-pointer"
+                      >
+                        Khôi Phục Ban Đầu
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Import JSON */}
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                    <div className="flex items-center gap-2 text-slate-900 font-extrabold text-sm">
+                      <Upload className="w-5 h-5 text-lime-600" />
+                      <span>Nhập Dữ Liệu Từ Chuỗi JSON</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Dán nội dung mã JSON sao lưu vào ô dưới đây để nạp dữ liệu vào hệ thống:</p>
+
+                    <textarea
+                      rows={4}
+                      value={jsonInput}
+                      onChange={(e) => setJsonInput(e.target.value)}
+                      placeholder="Dán mã JSON sao lưu vào đây..."
+                      className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-slate-800 font-mono focus:outline-none focus:border-lime-500"
+                    />
+
+                    <button
+                      onClick={handleImportSubmit}
+                      className="px-6 py-2.5 rounded-full bg-[#d9f99d] hover:bg-lime-300 text-slate-900 font-extrabold text-xs uppercase tracking-wider cursor-pointer"
+                    >
+                      Nạp Dữ Liệu Lên Website
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: SYSTEM OPERATIONAL GUIDE */}
+            {activeTab === 'guide' && (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-white p-6 sm:p-8 rounded-[28px] border border-slate-200/80 shadow-sm space-y-6">
+                  <div className="border-b border-slate-100 pb-4">
+                    <h3 className="text-2xl font-extrabold text-slate-900 flex items-center gap-2">
+                      <BookOpen className="w-6 h-6 text-lime-600" />
+                      <span>Hướng Dẫn Quản Trị Vận Hành Hệ Thống</span>
+                    </h3>
+                    <p className="text-xs text-slate-500">Các thao tác quản lý dữ liệu, cập nhật bảng giá và bảo mật hệ thống.</p>
+                  </div>
+
+                  <div className="space-y-4 text-xs text-slate-700 leading-relaxed font-sans">
+                    
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">1. Quản Lý Điểm Đến & Giá Thành:</h4>
+                      <p>Chuyển sang tab <strong className="text-slate-900">Điểm Đến & Bảng Giá</strong>. Bấm nút <strong className="text-slate-900">Sửa</strong> trên bất kỳ điểm đến nào để cập nhật tên, ảnh, hệ số dịch vụ và các mục giá thành chi tiết (giá khách sạn, ăn uống, di chuyển, vé tham quan VND).</p>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">2. Thay Đổi Banner Trang Chủ:</h4>
+                      <p>Chuyển sang tab <strong className="text-slate-900">Banner Trang Chủ</strong> để thay đổi câu khẩu hiệu, hình ảnh phong cảnh nền và nội dung các nút bấm chính. Có ô xem trước giao diện tự động.</p>
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">3. Sao Lưu & Bảo Mật Dữ Liệu:</h4>
+                      <p>Định kỳ vào tab <strong className="text-slate-900">Cloud & Sao Lưu</strong> bấm <strong className="text-slate-900">Tải File Backup Về Máy</strong> để lưu giữ file cấu hình dự phòng (.json) an toàn.</p>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+        </main>
+      </motion.div>
+    </div>
+  );
+};
